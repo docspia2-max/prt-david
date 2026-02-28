@@ -1,0 +1,56 @@
+// ============================================================
+// SISTEMA: Pullback Industrial & Mining Pro - GOLD VERSION
+// Versión   : 1.5 (Smart Stagnation Exit)
+// ============================================================
+
+// --- PARÁMETROS ---
+CapitalInicial = 100000
+RiesgoPorc     = 2.0
+pEMAlenta     = 50    
+pEMAultra     = 200   
+pFI           = 13    
+pRSI          = 2     
+umbralRSI     = 30    
+multATRstop   = 1.5    
+multATRtp     = 3.5    
+
+// --- INDICADORES ---
+ema50  = ExponentialAverage[pEMAlenta](close)
+ema200 = ExponentialAverage[pEMAultra](close)
+atr    = AverageTrueRange[14](close)
+miRSI  = RSI[pRSI](close)
+fiSmooth = ExponentialAverage[pFI](volume * (close - close[1]))
+
+// --- ENTRADA ---
+condicionEntrada = (close > ema50 AND ema50 > ema200) AND (fiSmooth < fiSmooth[1]) AND (miRSI < umbralRSI)
+
+IF NOT OnMarket AND condicionEntrada THEN
+    stopDist = atr * multATRstop
+    IF stopDist > 0 THEN
+        riesgoDinero = ((CapitalInicial + StrategyProfit) * RiesgoPorc / 100)
+        numAcciones  = floor(riesgoDinero / stopDist)
+        IF numAcciones > 0 THEN
+            BUY numAcciones SHARES AT MARKET
+            SET STOP LOSS stopDist
+        ENDIF
+    ENDIF
+ENDIF
+
+// --- GESTIÓN DE SALIDAS ---
+IF OnMarket THEN
+    // 1. Salida por Sobrecompra
+    IF miRSI > 85 THEN
+        SELL AT MARKET
+    ENDIF
+    
+    // 2. Salida por Estancamiento Inteligente (Mejora 1.5)
+    diasEnMercado = BARINDEX - TradeIndex
+    IF diasEnMercado > 7 AND (close - PositionPrice) < (atr * 0.5) THEN
+        SELL AT MARKET
+    ENDIF
+
+    // 3. Breakeven & Trailing
+    IF (close - PositionPrice) > (atr * multATRstop) THEN
+        SET STOP PRICE PositionPrice // Mueve a precio de entrada
+    ENDIF
+ENDIF
